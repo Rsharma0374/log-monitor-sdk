@@ -1,5 +1,6 @@
 package in.guardianservices.log_monitor_sdk.kafka;
 
+import in.guardianservices.log_monitor_sdk.dto.LogAnalysisRequest;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -41,11 +42,11 @@ public class KafkaLogProducer {
      * Asynchronously sends a log payload to the configured Kafka topic.
      *
      * @param key     The key associated with the log event, typically the logger name or correlation ID.
-     * @param payload The structured (JSON) payload containing the log event details.
+     * @param logAnalysisRequest The structured (JSON) payload containing the log event details.
      */
-    public void sendLog(String key, String payload) {
+    public void sendLog(String key, String logAnalysisRequest) {
         if (producer != null) {
-            producer.send(new ProducerRecord<>(topic, key, payload));
+            producer.send(new ProducerRecord<>(topic, key, logAnalysisRequest));
         }
     }
 

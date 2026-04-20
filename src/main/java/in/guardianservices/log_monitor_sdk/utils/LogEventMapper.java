@@ -3,6 +3,9 @@ package in.guardianservices.log_monitor_sdk.utils;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.StackTraceElementProxy;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import in.guardianservices.log_monitor_sdk.dto.LogAnalysisRequest;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Map;
 
@@ -12,6 +15,7 @@ import java.util.Map;
  */
 public class LogEventMapper {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     /**
      * Converts an {@link ILoggingEvent} to a JSON-formatted string.
      * The resulting JSON object contains the timestamp, log level, logger name,
@@ -20,13 +24,16 @@ public class LogEventMapper {
      * @param event The Logback logging event to be converted.
      * @return A structured JSON string representation of the log event.
      */
-    public static String toJson(ILoggingEvent event) {
+    public static String toJson(ILoggingEvent event, String environment) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         appendField(sb, "timestamp", String.valueOf(event.getTimeStamp()), false);
         appendField(sb, "level", event.getLevel().toString(), true);
         appendField(sb, "logger", event.getLoggerName(), true);
         appendField(sb, "message", event.getFormattedMessage(), true);
+        if (StringUtils.isNoneBlank(environment)) {
+            appendField(sb, "environment", environment, true);
+        }
 
         if (event.getThrowableProxy() != null) {
             appendField(sb, "stackTrace", formatStackTrace(event.getThrowableProxy()), true);
@@ -69,5 +76,23 @@ public class LogEventMapper {
             st.append(step.getSTEAsString()).append("\\n");
         }
         return st.toString();
+    }
+
+    public static String mapLogEvent(ILoggingEvent event, String environment, String serviceName) {
+        try {
+            LogAnalysisRequest request = new LogAnalysisRequest();
+            request.setRawLog(event.getFormattedMessage());
+            request.setSource(serviceName);
+            request.setSeverity(event.getLevel().toString());
+            request.setLogger(event.getLoggerName());
+            request.setEnvironment(environment);
+
+            // Convert Object to JSON String
+            return objectMapper.writeValueAsString(request);
+
+        } catch (Exception e) {
+            // Fallback for safety: Return a basic string if JSON fails
+            return "{\"error\": \"Serialization failed\"}";
+        }
     }
 }

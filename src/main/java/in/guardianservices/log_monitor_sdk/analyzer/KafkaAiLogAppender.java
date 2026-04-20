@@ -2,6 +2,7 @@ package in.guardianservices.log_monitor_sdk.analyzer;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
+import in.guardianservices.log_monitor_sdk.dto.LogAnalysisRequest;
 import in.guardianservices.log_monitor_sdk.kafka.KafkaLogProducer;
 import in.guardianservices.log_monitor_sdk.utils.LogEventMapper;
 
@@ -15,6 +16,16 @@ public class KafkaAiLogAppender extends AppenderBase<ILoggingEvent> {
     private String bootstrapServers;
     private String topic;
     private KafkaLogProducer kafkaProducer;
+
+    private String environment; // Added field
+    private String serviceName; // New field
+
+    public void setServiceName(String serviceName) {
+        this.serviceName = serviceName;
+    }
+    public void setEnvironment(String environment) {
+        this.environment = environment;
+    }
 
     /**
      * Initializes the appender by creating an instance of the {@link KafkaLogProducer}.
@@ -42,8 +53,10 @@ public class KafkaAiLogAppender extends AppenderBase<ILoggingEvent> {
         // Only process Error logs to maintain efficiency
         if (event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.ERROR)) {
             try {
-                String jsonPayload = LogEventMapper.toJson(event);
-                kafkaProducer.sendLog(event.getLoggerName(), jsonPayload);
+//                String jsonPayload = LogEventMapper.toJson(event, this.environment);
+                String logAnalysisRequest = LogEventMapper.mapLogEvent(event, this.environment, this.serviceName);
+
+                kafkaProducer.sendLog(event.getLoggerName(), logAnalysisRequest);
             } catch (Exception e) {
                 addError("Failed to map or send log to Kafka", e);
             }
