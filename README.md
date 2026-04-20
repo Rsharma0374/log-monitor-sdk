@@ -29,7 +29,7 @@ Add the SDK as a dependency in your project's `pom.xml`:
 <dependency>
     <groupId>in.guardianservices</groupId>
     <artifactId>log-monitor-sdk</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>2026.0.1</version>
 </dependency>
 ```
 
