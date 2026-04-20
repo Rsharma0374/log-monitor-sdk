@@ -81,7 +81,11 @@ public class LogEventMapper {
     public static String mapLogEvent(ILoggingEvent event, String environment, String serviceName) {
         try {
             LogAnalysisRequest request = new LogAnalysisRequest();
-            request.setRawLog(event.getFormattedMessage() + "\\n" + formatStackTrace(event.getThrowableProxy()));
+            if (event.getThrowableProxy() != null) {
+                request.setRawLog(event.getFormattedMessage() + "\\n" + formatStackTrace(event.getThrowableProxy()));
+            } else {
+                request.setRawLog(event.getFormattedMessage());
+            }
             request.setSource(serviceName);
             request.setSeverity(event.getLevel().toString());
             request.setLogger(event.getLoggerName());
