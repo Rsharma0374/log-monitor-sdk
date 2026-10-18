@@ -1,4 +1,4 @@
 jdk:
   - openjdk21
 install:
-  - mvn clean install -Pprod -DskipTests
+  - ./mvnw clean install -Pprod -DskipTests
