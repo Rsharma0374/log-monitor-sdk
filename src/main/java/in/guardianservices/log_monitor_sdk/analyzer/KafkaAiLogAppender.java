@@ -2,9 +2,10 @@ package in.guardianservices.log_monitor_sdk.analyzer;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
-import in.guardianservices.log_monitor_sdk.dto.LogAnalysisRequest;
 import in.guardianservices.log_monitor_sdk.kafka.KafkaLogProducer;
 import in.guardianservices.log_monitor_sdk.utils.LogEventMapper;
+import in.guardianservices.log_monitor_sdk.utils.SdkConfig;
+import ch.qos.logback.core.spi.ContextAwareBase;
 
 /**
  * A custom Logback Appender that intercepts application log events and publishes them to a Kafka topic.
@@ -17,8 +18,15 @@ public class KafkaAiLogAppender extends AppenderBase<ILoggingEvent> {
     private String topic;
     private KafkaLogProducer kafkaProducer;
 
-    private String environment; // Added field
-    private String serviceName; // New field
+    private String environment;
+    private String serviceName;
+
+    /** Prevents feedback loops: never forward the Kafka client's or the SDK's own errors. */
+    private static boolean isInternal(ILoggingEvent event) {
+        String name = event.getLoggerName();
+        return name != null && (name.startsWith("org.apache.kafka.")
+                || name.startsWith("in.guardianservices.log_monitor_sdk."));
+    }
 
     public void setServiceName(String serviceName) {
         this.serviceName = serviceName;
@@ -33,8 +41,19 @@ public class KafkaAiLogAppender extends AppenderBase<ILoggingEvent> {
      */
     @Override
     public void start() {
+        String servers = SdkConfig.resolve(bootstrapServers, SdkConfig.BOOTSTRAP_SERVERS);
+        String targetTopic = SdkConfig.resolve(topic, SdkConfig.TOPIC);
+        if (servers == null || targetTopic == null) {
+            addError("bootstrapServers/topic are not configured (logback.xml or profile log-monitor-sdk.properties)");
+            return;
+        }
+        if (serviceName == null || serviceName.isBlank()) {
+            addWarn("serviceName is not set; the analyzer rejects logs without 'source'");
+        }
         try {
-            this.kafkaProducer = new KafkaLogProducer(bootstrapServers, topic);
+            ContextAwareBase status = new ContextAwareBase();
+            status.setContext(getContext());
+            this.kafkaProducer = new KafkaLogProducer(servers, targetTopic, status);
             super.start();
         } catch (Exception e) {
             addError("Failed to initialize Kafka producer for AI Logging", e);
@@ -51,11 +70,14 @@ public class KafkaAiLogAppender extends AppenderBase<ILoggingEvent> {
     @Override
     protected void append(ILoggingEvent event) {
         // Only process Error logs to maintain efficiency
-        if (event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.ERROR)) {
+        if (event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.ERROR) && !isInternal(event)) {
             try {
-//                String jsonPayload = LogEventMapper.toJson(event, this.environment);
                 String logAnalysisRequest = LogEventMapper.mapLogEvent(event, this.environment, this.serviceName);
 
+                if (logAnalysisRequest == null) {
+                    addWarn("Skipping log event: payload serialization failed");
+                    return;
+                }
                 kafkaProducer.sendLog(event.getLoggerName(), logAnalysisRequest);
             } catch (Exception e) {
                 addError("Failed to map or send log to Kafka", e);

@@ -7,6 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import in.guardianservices.log_monitor_sdk.dto.LogAnalysisRequest;
 import org.apache.commons.lang3.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
 
 /**
@@ -72,31 +76,50 @@ public class LogEventMapper {
      */
     private static String formatStackTrace(IThrowableProxy tp) {
         StringBuilder st = new StringBuilder();
-        for (StackTraceElementProxy step : tp.getStackTraceElementProxyArray()) {
-            st.append(step.getSTEAsString()).append("\\n");
+        StackTraceElementProxy[] steps = tp.getStackTraceElementProxyArray();
+        if (steps != null) {
+            for (StackTraceElementProxy step : steps) {
+                st.append(step.getSTEAsString()).append("\n");
+            }
         }
         return st.toString();
     }
 
+    /**
+     * Maps a Logback event to the JSON payload expected by the analyzer's {@code ErrorLogConsumer}.
+     *
+     * @return JSON string, or {@code null} if serialization failed (caller must not send it)
+     */
     public static String mapLogEvent(ILoggingEvent event, String environment, String serviceName) {
         try {
             LogAnalysisRequest request = new LogAnalysisRequest();
+            String rawLog = event.getFormattedMessage();
             if (event.getThrowableProxy() != null) {
-                request.setRawLog(event.getFormattedMessage() + "\\n" + formatStackTrace(event.getThrowableProxy()));
-            } else {
-                request.setRawLog(event.getFormattedMessage());
+                rawLog = rawLog + "\n" + event.getThrowableProxy().getClassName() + ": "
+                        + event.getThrowableProxy().getMessage() + "\n"
+                        + formatStackTrace(event.getThrowableProxy());
             }
+            request.setRawLog(rawLog);
             request.setSource(serviceName);
             request.setSeverity(event.getLevel().toString());
             request.setLogger(event.getLoggerName());
             request.setEnvironment(environment);
+            request.setIdempotencyKey(idempotencyKey(serviceName, event, rawLog));
 
-            // Convert Object to JSON String
+            Map<String, String> mdc = event.getMDCPropertyMap();
+            if (mdc != null && !mdc.isEmpty()) {
+                request.setContext(new HashMap<>(mdc));
+            }
             return objectMapper.writeValueAsString(request);
-
         } catch (Exception e) {
-            // Fallback for safety: Return a basic string if JSON fails
-            return "{\"error\": \"Serialization failed\"}";
+            return null;
         }
+    }
+
+    /** Deterministic key so a retried send of the same event can be de-duplicated downstream. */
+    private static String idempotencyKey(String serviceName, ILoggingEvent event, String rawLog) throws Exception {
+        String seed = serviceName + "|" + event.getLoggerName() + "|" + event.getTimeStamp() + "|" + rawLog;
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(hash);
     }
 }

@@ -28,18 +28,45 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<logback.version>1.6.5</logback.version>
+		<jackson2-bom.version>2.22.4</jackson2-bom.version>
+		<lz4-java.version>1.12.0</lz4-java.version>
 	</properties>
+	<!-- Pin transitive dependencies that the Spring Boot BOM / Kafka resolve to vulnerable versions -->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.fasterxml.jackson</groupId>
+				<artifactId>jackson-bom</artifactId>
+				<version>${jackson2-bom.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>ch.qos.logback</groupId>
+				<artifactId>logback-core</artifactId>
+				<version>${logback.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>at.yawk.lz4</groupId>
+				<artifactId>lz4-java</artifactId>
+				<version>${lz4-java.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.5.16</version> <scope>provided</scope>
+			<version>${logback.version}</version>
+			<scope>provided</scope>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.kafka</groupId>
 			<artifactId>kafka-clients</artifactId>
-			<version>4.2.0</version>
+			<version>4.4.0</version>
 		</dependency>
 
 		<!-- Logging -->
@@ -51,13 +78,12 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
-			<version>3.20.0</version>
+			<version>3.21.0</version>
 		</dependency>
 
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
-			<version>2.17.0</version>
 		</dependency>
 	</dependencies>
 
